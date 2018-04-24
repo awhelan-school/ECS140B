@@ -1,3 +1,6 @@
+%% 
+%% GAME SETUP
+%% 
 :- dynamic weapons/1.
 add_weapons(L) :- 
 	assert(weapons(L)).
@@ -8,11 +11,13 @@ add_rooms(L) :-
 add_suspects(L) :- 
 	assert(suspects(L)).
 
-:- dynamic does_not_have/2.
+%% lists of cards players are confirmed to have and could have
+%% cards are either in "has" or "could have" or neither, but not in both
+%% at the start of the game could haves contain all cards
+%% when a player is confirmed to have a card, it is added to his has list 
+%% and removed from his could have list. It is also removed from everyone else's could have lists
 :- dynamic has/2.
 :- dynamic could_have/2.
-
-:- dynamic control/1.
 
 %% add players after adding all other elements, add in order
 :- dynamic players/1.
@@ -24,31 +29,64 @@ init_players([H|T]) :-
 	assert(could_have(H, WSR)), assert(has(H, [])), init_players(T).
 
 
+%% controlling player, the one who uses this program
+:- dynamic control/1.
 %% define who you control and which cards you have
-%% control has cards
-%% other players can't have control's cards
-control_player(CONTROL, CARDS) :- 
-	assert(has(CONTROL, CARDS)), unset_all_could_have(CARDS).
+%% other players can't have those cards(including you)
+control_player(P, CARDS) :- 
+	unset_all_could_have(CARDS), 
+	has(P, CURRENT), retract(has(P, CURRENT)), assert(has(P, CARDS)).
 unset_all_could_have(CARDS) :- 
-	players(PLAYERS), member(PLAYER, PLAYERS), unset_could_have(PLAYER, CARDS).
+	players(PLAYERS), member(P, PLAYERS), unset_could_have(P, CARDS).
 
-%% every player but SUGGESTER can't have suggested cards
-%% can do as single list, can do as 3 separate args (W, R, S), might need 3 separate args for more advanced functionality
+
+
+
+
+%% 
+%% PLAYING THE GAME
+%% 
+
+%% call this when a suggestion happens and it is not proven by anyone
+%% every player but SUGGESTER can't have suggested cards,
+%% since they didn't prove the suggestion
 unproven(SUGGESTER, CARDS) :- 
 	players(PLAYERS), member(P, PLAYERS), not(P = SUGGESTER), unset_could_have(P, CARDS).
 
-%% players between SUGGESTER and PROVER do not have CARDS
-%% PROVER could have CARDS
+
+%% call this when a suggestion is proven, but you are not the suggester
+%% players between SUGGESTER and PROVER can't have suggested cards
 %% have to consider order as cyclical
 proven(SUGGESTER, PROVER, CARDS) :-
 	player_between(SUGGESTER, PROVER, P), unset_could_have(P, CARDS).
 
-%% same as other one, only we know which card prover has
-proven_to_me(SUGGESTER, PROVER, CARDS, SHOWN_CARD) :-
-	unset_all_between(SUGGESTER, PROVER, CARDS),
-	set_has(PROVER, SHOWN_CARD).
 
-unset_all_between(START, END, CARDS) :- player_between(SUGGESTER, PROVER, P), unset_could_have(P, CARDS).
+%% same as other one, only we are making the suggestion 
+%% and therefore see which cards the prover showed
+proven_to_me(SUGGESTER, PROVER, CARDS, SHOWN_CARD) :-
+	set_has(PROVER, SHOWN_CARD),
+	unset_all_could_have([SHOWN_CARD]),
+	unset_all_between(SUGGESTER, PROVER, CARDS).
+
+
+%% return players between START and END, 
+%% if END is after START, return players that are after START AND before END
+player_between(START, END, P) :- 
+players(PLAYERS),
+	append(_, [START|AFTER_S], PLAYERS), member(END, AFTER_S), 
+	append(BEFORE_E, [END|_], PLAYERS), member(P, AFTER_S), member(P, BEFORE_E).
+%% if END is before END, return players after START OR before END
+player_between(START, END, P) :- 
+players(PLAYERS),
+	append(BEFORE_S, [START|AFTER_S], PLAYERS), member(END, BEFORE_S), 
+	append(BEFORE_E, [END|_], PLAYERS), (member(P, AFTER_S); member(P, BEFORE_E)).
+
+%% helper predicate for proofs
+unset_all_between(START, END, CARDS) :- 
+	player_between(START, END, P), unset_could_have(P, CARDS).
+
+
+
 
 %% make_suggestion(PLAYER, W, R, S) :- weapons(WEAPONS), rooms(ROOMS), suspects(SUSPECTS),
 %% 	member(W, WEAPONS), member(R, ROOMS), member(S, SUSPECTS),
@@ -56,42 +94,12 @@ unset_all_between(START, END, CARDS) :- player_between(SUGGESTER, PROVER, P), un
 	
 
 
-%% return players between START and END, 
-%% if END is after START, return players that are after START AND before END
-player_between(START, END, P) :- players(PLAYERS),
-	append(_, [START|AFTER_S], PLAYERS), member(END, AFTER_S), 
-	append(BEFORE_E, [END|_], PLAYERS), member(P, AFTER_S), member(P, BEFORE_E).
-%% if END is before END, return players after START OR before END
-player_between(START, END, P) :- players(PLAYERS),
-	append(BEFORE_S, [START|AFTER_S], PLAYERS), member(END, BEFORE_S), 
-	append(BEFORE_E, [END|_], PLAYERS), (member(P, AFTER_S); member(P, BEFORE_E)).
-
-
-set_does_not_have(P, CARDS) :- 
-	does_not_have(P, CURR), append(CURR, CARDS, NEW), sort(NEW, NEW_UNIQUE), 
-	retract(does_not_have(P, CURR)), assert(does_not_have(P, NEW_UNIQUE)).
-set_could_have(P, CARDS) :- 
-	could_have(P, CURR), append(CURR, CARDS, NEW), sort(NEW, NEW_UNIQUE), 
-	retract(could_have(P, CURR)), assert(does_not_have(P, NEW_UNIQUE)).
-set_has(P, CARD) :- 
-	has(P, CURR), append(CURR, [CARD], NEW), sort(NEW, NEW_UNIQUE), 
-	retract(has(P, CURR)), assert(has(P, NEW_UNIQUE)).
-
 unset_could_have(P, CARDS) :-
-	could_have(P, CURRENT), subtract(CURRENT, CARDS, NEW), retract(could_have(P, CURRENT)), assert(could_have(P, NEW)).
-
-%% add_weapons([w1, w2, w3, w4, w5, w6]).
-%% add_rooms([r1, r2, r3, r4, r5, r6]).
-%% add_suspects([s1, s2, s3, s4, s5, s6]).
-/*
-
-consult('clue.pl').
-
-add_players([s1, s2, s3, s4, s5, s6]).
-
-control_player(s3, [s2, w1, r1]).
-
-*/
+	could_have(P, CURRENT), subtract(CURRENT, CARDS, NEW), retract(could_have(P, CURRENT)), 
+	assert(could_have(P, NEW)).
+set_has(P, CARD) :- 
+	has(P, CURR), append(CURR, [CARD], NEW), sort(NEW, NEW_UNIQUE), retract(has(P, CURR)), 
+	assert(has(P, NEW_UNIQUE)).
 
 
 list :-
@@ -100,13 +108,10 @@ list :-
 	weapons(W), write("Weapons: "), writeln(W).
 
 list_could :- 
-	could_have(P, COULD), write("Player:"), writeln(P), write("Could haves: "), writeln(COULD). 
+	could_have(P, COULD), write("Player:"), writeln(P), write("Could have: "), writeln(COULD). 
 
 list_has :- 
 	has(P, CARDS), write("Player:"), writeln(P), write("Has: "), writeln(CARDS). 
-
-%% print_could_have :- could_have(P1, COULD), write("Could haves: "), writeln(P1), writeln(COULD).
-%% print_has :- has(P1, COULD), write("Has's: "), writeln(P1), writeln(COULD).
 
 
 
@@ -114,3 +119,23 @@ list_has :-
 weapons([w1, w2, w3, w4, w5, w6]).
 rooms([r1, r2, r3, r4, r5, r6]).
 suspects([s1, s2, s3, s4, s5, s6]).
+
+
+/*
+TESTING
+
+consult('clue.pl').
+
+add_players([s1, s2, s3, s4, s5, s6]).
+
+control_player(s3, [s1, w1, r1]).
+
+unproven(s1, [s2, w2, r2]).
+^ should remove s2, w2 and r2 from everyone's could have list except s1's
+
+proven(s1, s4, [s2, w3, r2]).
+^ removes w3 from could have lists of s2, s3 only
+
+proven_to_me(s3, s4, [s2, w3, r2], w3). 
+^ s4 now has w3, w3 is removed from everyone else's could have lists
+*/

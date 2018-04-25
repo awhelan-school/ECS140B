@@ -10,23 +10,27 @@
 :- dynamic suspects_base/1.
 :- dynamic rooms_base/1.
 
-is_member(X, Y) :-
+:- initialization(init).
+
+is_member(_, Y) :-
   rooms_base(R), member(Y, R);
   weapons_base(W), member(Y, W);
   suspects_base(S), member(Y, S).
 
-is_member2(X, Y) :-
+is_member2(_, Y) :-
   rooms_base(R), member(Y, R);
   weapons_base(W), member(Y, W);
   suspects_base(S), member(Y, S);
   order(O), member(Y, O).
 
+showPlayers([]).
+showPlayers([H|T]) :- player(H,Y,Z), writeln(H), writeln(Y), writeln(Z),
+                      showPlayers(T).
 
 % player(X, [known cards], [possible cards]).
 
-:- initialization(init).
-
 init :-
+  /*
   write("What are the room names?"),nl,
   readln(RoomList),
   assert(rooms(RoomList)),
@@ -49,6 +53,16 @@ init :-
   write("What cards are you holding?"),nl,
   readln(CardList),
   assert(cards(CardList)),
+  */
+
+  assert(rooms(['R1','R2','R3','R4','R5','R6'])),
+  assert(rooms_base(['R1','R2','R3','R4','R5','R6'])),
+  assert(weapons(['W1','W2','W3','W4','W5','W6'])),
+  assert(weapons_base(['W1','W2','W3','W4','W5','W6'])),
+  assert(suspects(['S1','S2','S3','S4','S5','S6'])),
+  assert(suspects_base(['W1','W2','W3','W4','W5','W6'])),
+  assert(cards(['C1','C2','C3','C4'])),
+  assert(order(['Alex','Ben', '*', 'Charlie'])),
 
   cards(C),
   rooms(R), subtract(R, C, RF), retract(rooms(R)), assert(rooms(RF)),
@@ -57,12 +71,13 @@ init :-
 
   % Init All Player Cards
   append(RF, WF, RFWF), append(RFWF, SF, All),
-  order(O),initPlayers(O, [], All),
+  order(O),initPlayers(O, [], All), initPlayers('*', C, []),
   prompt.
 
 initPlayers([], [], _).
 initPlayers([H|T], [], A) :- assert(player(H, [], A)), initPlayers(T, [], A).
-
+initPlayers('*', C, _) :- retract(player('*', _, _)),
+                          assert(player('*', C, [])).
 
 showData :-
   write('Possible Rooms:'), rooms(R), writeln(R),
@@ -72,17 +87,19 @@ showData :-
 
 prompt :-
   endgame;
-  write("\n\n\n\n"),
+  write("\n"),
   write("[1] Make a Suggestion\n"),
   write("[2] Observe a Suggestion\n"),
   write("[3] Show Data\n"),
-  write("[4] End Game\n"),
+  write("[4] Show Players\n"),
+  write("[5] End Game\n"),
   write("Choice: "),nl,
   readln(Choice),member(C, Choice),nl,
   choice(C),
   prompt.
 
-choice(4) :- .
+choice(5).
+choice(4) :- order(O), showPlayers(O).
 choice(3) :- showData.
 choice(2) :- write("What did you observe?\n"), readln(In),
              filterObservation(In, Out), writeln(Out).
@@ -95,7 +112,7 @@ updateCards([Person|Card]) :- rooms(R), weapons(W), suspects(S),
                   subtract(R, Card, RF), retract(rooms(R)), assert(rooms(RF)),
                   subtract(W, Card, WF), retract(weapons(W)), assert(weapons(WF)),
                   subtract(S, Card, SF), retract(suspects(S)), assert(suspects(SF)),
-                  term_string(Person, P),
+                  term_string(Person, _),
                   % Update Person Who Shows you a card
                   player(Person, Known, Possible),
                   % Update Their Known Cards
@@ -103,19 +120,19 @@ updateCards([Person|Card]) :- rooms(R), weapons(W), suspects(S),
                   % Update the remaining possible cards
                   subtract(Possible, NewKnown, NewPossible),
                   % Reassert the person
-                  retract(player(Person, _, _)),
+                  retract(player(Person, Known, Possible)),
                   assert(player(Person, NewKnown, NewPossible)).
 
 
-parseSuggestion(In)   :- writeln("YAY you win the game").
-parseSuggestion([no]) :- writeln("YAY you win the game").
-parseSuggestion([N])  :- writeln("YAY you win the game").
-parseSuggestion([n])  :- writeln("YAY you win the game").
+parseSuggestion([No], P) :- endgame(P).
+parseSuggestion([no], P) :- endgame(P).
+parseSuggestion([N],  P) :- endgame(P).
+parseSuggestion([n],  P) :- endgame(P).
 
 parseSuggestion(In, Proof) :- filterObservation(In, Proof).
 
-filterSuggestion(In, Out) :- include(is_member(X), In, Out).
-filterObservation(In, Out) :- include(is_member2(X), In, Out).
+filterSuggestion(In, Out) :- include(is_member(_), In, Out).
+filterObservation(In, Out) :- include(is_member2(_), In, Out).
 
 endgame :- rooms(R), suspects(S), weapons(W),
            length(R, RL),length(S, SL),length(W, WL),
@@ -123,3 +140,7 @@ endgame :- rooms(R), suspects(S), weapons(W),
            format("Hey, Kurt, all that's left is ~w, ~w, and the ~w it's time to make a choice!\n",
            [S,W,R]),
            halt.
+
+endgame([S,W,R]) :- format("Hey, Kurt, all that's left is ~w, ~w, and the ~w it's time to make a choice!\n",
+                            [S,W,R]),
+                            halt.

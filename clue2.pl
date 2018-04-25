@@ -10,14 +10,19 @@ add_rooms(L) :-
 :- dynamic suspects/1.
 add_suspects(L) :- 
 	assert(suspects(L)).
+:- dynamic card_amount/1.
+set_card_amount(X) :-
+	assert(card_amount(X)).
 
 %% lists of cards players are confirmed to have and could have
 %% cards are either in "has" or "could have" or neither, but not in both
 %% at the start of the game could haves contain all cards
 %% when a player is confirmed to have a card, it is added to his has list 
 %% and removed from his could have list. It is also removed from everyone else's could have lists
+%% also save all proofs done by player as triples of cards
 :- dynamic has/2.
 :- dynamic could_have/2.
+:- dynamic proof/2.
 
 %% add players after adding all other elements, add in order
 :- dynamic players/1.
@@ -26,7 +31,8 @@ add_players(L) :-
 init_players([]).
 init_players([H|T]) :-  
 	weapons(W), suspects(S), rooms(R), append(W, S, WS), append(WS, R, WSR),
-	assert(could_have(H, WSR)), assert(has(H, [])), init_players(T).
+	assert(could_have(H, WSR)), assert(has(H, [])), assert(proof(H, [])),
+	init_players(T).
 
 
 %% controlling player, the one who uses this program
@@ -38,7 +44,6 @@ control_player(P, CARDS) :-
 	has(P, CURRENT), retract(has(P, CURRENT)), assert(has(P, CARDS)).
 unset_all_could_have(CARDS) :- 
 	players(PLAYERS), member(P, PLAYERS), unset_could_have(P, CARDS).
-
 
 
 
@@ -57,9 +62,13 @@ unproven(SUGGESTER, CARDS) :-
 %% call this when a suggestion is proven, but you are not the suggester
 %% players between SUGGESTER and PROVER can't have suggested cards
 %% have to consider order as cyclical
+%% add proof for prover
 proven(SUGGESTER, PROVER, CARDS) :-
-	player_between(SUGGESTER, PROVER, P), unset_could_have(P, CARDS).
-
+	add_proof(PROVER, CARDS),
+	unset_all_between(SUGGESTER, PROVER, CARDS).
+add_proof(P, PROOF) :-
+	proof(P, CURRENT), retract(proof(P, CURRENT)), 
+	append(CURRENT, [PROOF], NEW), assert(proof(P, NEW)).
 
 %% same as other one, only we are making the suggestion 
 %% and therefore see which cards the prover showed
@@ -86,14 +95,49 @@ unset_all_between(START, END, CARDS) :-
 	player_between(START, END, P), unset_could_have(P, CARDS).
 
 
+%% called after each alteration to could_have or has for any player
+analyze_proofs(P) :-
+	findall(CARDS, generate_possible(P, CARDS), ALL), 
+	only_permutations(ALL), ALL = [H|T],
+	has(P, CURRENT), retract(has(P, CURRENT)), assert(has(P, H)).
 
 
-%% make_suggestion(PLAYER, W, R, S) :- weapons(WEAPONS), rooms(ROOMS), suspects(SUSPECTS),
-%% 	member(W, WEAPONS), member(R, ROOMS), member(S, SUSPECTS),
-%% 	has(_, HAS_LIST), not(member(W, HAS_LIST)), not(member(R, HAS_LIST)), not(member(S, HAS_LIST)),
+%% generate possible cards that player P could have
+%% these cards must either be in could have or has list of player P
+%% they also must together satisfy all proofs that P has done
+generate_possible(P, CARDS) :-
+	card_amount(CARD_AMOUNT),
+	length(CARDS, CARD_AMOUNT),
+	all_could_or_has(P, CARDS),
+	proves_all_proofs(P, CARDS),
+	is_set(CARDS).
+
+only_permutations([_]).
+only_permutations([H1|[H2|T]]) :-
+	my_permutation(H1, H2), 
+	only_permutations([H2|T]), !.
+
+my_permutation(X, Y) :-
+	sort(X, SORTED),
+	sort(Y, SORTED).
+
+
+
+
+all_could_or_has(_, []).
+all_could_or_has(P, [H|T]) :-
+	has(P, HAS), could_have(P, COULD),
+	(member(H, HAS); member(H, COULD)),
+	all_could_or_has(P, T).
+
+proves_all_proofs(P, CARDS) :-
+	proof(P, PROOFS), proves_all_proofs_helper(P, CARDS, PROOFS).
+proves_all_proofs_helper(P, CARDS, []).
+proves_all_proofs_helper(P, CARDS, [H|T]) :-
+	member(C, CARDS), member(C, H),
+	proves_all_proofs_helper(P, CARDS, T).
+
 	
-
-
 unset_could_have(P, CARDS) :-
 	could_have(P, CURRENT), subtract(CURRENT, CARDS, NEW), retract(could_have(P, CURRENT)), 
 	assert(could_have(P, NEW)).
@@ -113,12 +157,14 @@ list_could :-
 list_has :- 
 	has(P, CARDS), write("Player:"), writeln(P), write("Has: "), writeln(CARDS). 
 
-
+list_proofs :- 
+	proof(P, CARDS), write("Player:"), writeln(P), write("Proved: "), writeln(CARDS). 
 
 %% defaults for testing
 weapons([w1, w2, w3, w4, w5, w6]).
 rooms([r1, r2, r3, r4, r5, r6]).
 suspects([s1, s2, s3, s4, s5, s6]).
+card_amount(3).
 
 
 /*
@@ -138,4 +184,19 @@ proven(s1, s4, [s2, w3, r2]).
 
 proven_to_me(s3, s4, [s2, w3, r2], w3). 
 ^ s4 now has w3, w3 is removed from everyone else's could have lists
+
+
+
+
+example for generate_possible()
+input all of this, then generate_possible(s1, X), it will output permutations of [w3, s2, r4]
+proven(s4, s1, [w3, s1, r1]).
+proven(s4, s1, [w3, s1, r2]).
+proven(s4, s1, [w3, s1, r3]).
+proven(s4, s1, [w1, s2, r1]).
+proven(s4, s1, [w1, s2, r2]).
+proven(s4, s1, [w1, s2, r3]).
+proven(s4, s1, [w1, s1, r4]).
+proven(s4, s1, [w1, s2, r4]).
+proven(s4, s1, [w1, s3, r4]).
 */

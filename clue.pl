@@ -46,7 +46,8 @@ init :-
   assert(suspects(SuspectList)),
   assert(suspects_base(SuspectList)),
 
-  write("What is the order of the players?"),nl,
+  write("What is the order of the players?\n
+  Denote yourself with an '*'.\n (i.e) {PersonA, PersonB, *, PersonC}\n"),nl,
   readln(PlayerList),
   assert(order(PlayerList)),
 
@@ -60,14 +61,17 @@ init :-
   assert(weapons(['W1','W2','W3','W4','W5','W6'])),
   assert(weapons_base(['W1','W2','W3','W4','W5','W6'])),
   assert(suspects(['S1','S2','S3','S4','S5','S6'])),
-  assert(suspects_base(['W1','W2','W3','W4','W5','W6'])),
+  assert(suspects_base(['S1','S2','S3','S4','S5','S6'])),
   assert(cards(['C1','C2','C3','C4'])),
   assert(order(['Alex','Ben', '*', 'Charlie'])),
 
+  % Remove Starting Cards from Possible
   cards(C),
-  rooms(R), subtract(R, C, RF), retract(rooms(R)), assert(rooms(RF)),
-  weapons(W), subtract(W, C, WF), retract(weapons(W)), assert(weapons(WF)),
-  suspects(S), subtract(S, C, SF), retract(suspects(S)), assert(suspects(SF)),
+
+  rooms(R), weapons(W), suspects(S),
+  subtract(R, C, RF), retract(rooms(R)), assert(rooms(RF)),
+  subtract(W, C, WF), retract(weapons(W)), assert(weapons(WF)),
+  subtract(S, C, SF), retract(suspects(S)), assert(suspects(SF)),
 
   % Init All Player Cards
   append(RF, WF, RFWF), append(RFWF, SF, All),
@@ -106,22 +110,52 @@ choice(2) :- write("What did you observe?\n"), readln(In),
 choice(1) :- write("What is your suggestion?\n"),readln(In),nl,
              filterSuggestion(In, Suggestion),writeln(Suggestion),
              write("Did you learn anything? If not say No.\n"),nl,
-             readln(In2), parseSuggestion(In2, Proof), updateCards(Proof).
+             readln(In2), parseSuggestion(In2, Proof),
+             updateCards(Proof, Suggestion).
 
-updateCards([Person|Card]) :- rooms(R), weapons(W), suspects(S),
-                  subtract(R, Card, RF), retract(rooms(R)), assert(rooms(RF)),
-                  subtract(W, Card, WF), retract(weapons(W)), assert(weapons(WF)),
-                  subtract(S, Card, SF), retract(suspects(S)), assert(suspects(SF)),
-                  term_string(Person, _),
-                  % Update Person Who Shows you a card
-                  player(Person, Known, Possible),
-                  % Update Their Known Cards
-                  append(Known, Card, NewKnown),
-                  % Update the remaining possible cards
-                  subtract(Possible, NewKnown, NewPossible),
-                  % Reassert the person
-                  retract(player(Person, Known, Possible)),
-                  assert(player(Person, NewKnown, NewPossible)).
+updateCards([Person|Card], SuggestedCards) :-
+  % If suggestion is proven remove from global possabilities
+  removeGlobalCards(Card),
+
+  addKnownCards(Person,Card),
+  removeCardsBetween(*, Person, SuggestedCards),fail;true.
+
+
+removeGlobalCards(Card) :- rooms(R), weapons(W), suspects(S),
+  subtract(R, Card, RF), retract(rooms(R)), assert(rooms(RF)),
+  subtract(W, Card, WF), retract(weapons(W)), assert(weapons(WF)),
+  subtract(S, Card, SF), retract(suspects(S)), assert(suspects(SF)).
+
+addKnownCards(Person, Card) :-
+  % Need to get name as "Name" instead of Name
+  term_string(Person, _),
+  % Update Person Who Shows you a card
+  player(Person, Known, Possible),
+  % Update Their Known Cards
+  append(Known, Card, NewKnown),
+  % Update the remaining possible cards
+  subtract(Possible, NewKnown, NewPossible),
+  % Reassert the person
+  retract(player(Person, Known, Possible)),
+  assert(player(Person, NewKnown, NewPossible)),
+  % Also we can remove known card from all other possabilities
+  player(Others, _, _), writeln(Others), removePossibleCards(Others, Card),fail;true.
+
+removePossibleCards(Person, SuggestedCards) :-
+  % Need to get name as "Name" instead of Name
+  term_string(Person, _),
+  % Get Person
+  player(Person, Known, Possible),
+  % Remove Cards
+  subtract(Possible, SuggestedCards, NewPossible),
+  % Reassert the person
+  retract(player(Person, _, _)),
+  assert(player(Person, Known, NewPossible)).
+
+removeCardsBetween(Person1, Person2, Cards) :-
+  % Update Players in Between (i.e. remove possible cards)
+  player_between(Person1, Person2, PersonBW),term_string(PersonBW, _),
+  removePossibleCards(PersonBW, Cards).
 
 
 parseSuggestion([No], P) :- endgame(P).
@@ -133,6 +167,17 @@ parseSuggestion(In, Proof) :- filterObservation(In, Proof).
 
 filterSuggestion(In, Out) :- include(is_member(_), In, Out).
 filterObservation(In, Out) :- include(is_member2(_), In, Out).
+
+
+%% return players between START and END,
+%% if END is after START, return players that are after START AND before END
+player_between(START, END, P) :- order(PLAYERS),
+	append(_, [START|AFTER_S], PLAYERS), member(END, AFTER_S),
+	append(BEFORE_E, [END|_], PLAYERS), member(P, AFTER_S), member(P, BEFORE_E).
+%% if END is before END, return players after START OR before END
+player_between(START, END, P) :- order(PLAYERS),
+	append(BEFORE_S, [START|AFTER_S], PLAYERS), member(END, BEFORE_S),
+	append(BEFORE_E, [END|_], PLAYERS), (member(P, AFTER_S); member(P, BEFORE_E)).
 
 endgame :- rooms(R), suspects(S), weapons(W),
            length(R, RL),length(S, SL),length(W, WL),

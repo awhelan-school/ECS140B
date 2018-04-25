@@ -108,9 +108,9 @@ choice(3) :- showData.
 choice(2) :- write("What did you observe?\n"), readln(In),
              filterObservation(In, Out), writeln(Out).
 choice(1) :- write("What is your suggestion?\n"),readln(In),nl,
-             filterSuggestion(In, Suggestion),writeln(Suggestion),
+             filterSuggestion(In, Suggestion),
              write("Did you learn anything? If not say No.\n"),nl,
-             readln(In2), parseSuggestion(In2, Proof),
+             readln(In2), parseSuggestion(In2, Suggestion, Proof),
              updateCards(Proof, Suggestion).
 
 updateCards([Person|Card], SuggestedCards) :-
@@ -158,12 +158,12 @@ removeCardsBetween(Person1, Person2, Cards) :-
   removePossibleCards(PersonBW, Cards).
 
 
-parseSuggestion([No], P) :- endgame(P).
-parseSuggestion([no], P) :- endgame(P).
-parseSuggestion([N],  P) :- endgame(P).
-parseSuggestion([n],  P) :- endgame(P).
+parseSuggestion([No], S, P) :- endgame(S),!.
+parseSuggestion([no], S, P) :- endgame(S),!.
+parseSuggestion([N],  S, P) :- endgame(S),!.
+parseSuggestion([n],  S, P) :- endgame(S),!.
 
-parseSuggestion(In, Proof) :- filterObservation(In, Proof).
+parseSuggestion(In, S, Proof) :- filterObservation(In, Proof).
 
 filterSuggestion(In, Out) :- include(is_member(_), In, Out).
 filterObservation(In, Out) :- include(is_member2(_), In, Out).

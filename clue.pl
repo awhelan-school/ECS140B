@@ -90,6 +90,7 @@ showData :-
 
 
 prompt :-
+  % Call Anayze
   endgame;
   write("\n"),
   write("[1] Make a Suggestion\n"),
@@ -102,11 +103,18 @@ prompt :-
   choice(C),
   prompt.
 
+% suggestion(PLAYER_NAME,[[Suggestion1], [Suggestion2]])
+
+
 choice(5).
 choice(4) :- order(O), showPlayers(O).
 choice(3) :- showData.
+
+% Observed Suggestion
 choice(2) :- write("What did you observe?\n"), readln(In),
              filterObservation(In, Out), writeln(Out).
+
+% Player Suggestion
 choice(1) :- write("What is your suggestion?\n"),readln(In),nl,
              filterSuggestion(In, Suggestion),
              write("Did you learn anything? If not say No.\n"),nl,
@@ -139,7 +147,7 @@ addKnownCards(Person, Card) :-
   retract(player(Person, Known, Possible)),
   assert(player(Person, NewKnown, NewPossible)),
   % Also we can remove known card from all other possabilities
-  player(Others, _, _), writeln(Others), removePossibleCards(Others, Card),fail;true.
+  player(Others, _, _), removePossibleCards(Others, Card),fail;true.
 
 removePossibleCards(Person, SuggestedCards) :-
   % Need to get name as "Name" instead of Name

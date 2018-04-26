@@ -2,40 +2,40 @@
 %% GAME SETUP
 %% 
 :- dynamic weapons/1.
+:- dynamic rooms/1.
+:- dynamic suspects/1.
+:- dynamic card_amount/1.
+:- dynamic players/1.
 add_weapons(L) :- 
 	assert(weapons(L)).
-:- dynamic rooms/1.
 add_rooms(L) :- 
 	assert(rooms(L)).
-:- dynamic suspects/1.
 add_suspects(L) :- 
 	assert(suspects(L)).
-:- dynamic card_amount/1.
 set_card_amount(X) :-
 	assert(card_amount(X)).
-
-%% card states for each player
-:- dynamic has/2.
-:- dynamic could_have/2.
-:- dynamic proof/2.
-
-%% add players after adding all other elements, add in order
-:- dynamic players/1.
 add_players(L) :- 
 	assert(players(L)), init_players(L).
+%% add players after adding all other elements, add in order
 init_players([]).
 init_players([H|T]) :-  
 	weapons(W), suspects(S), rooms(R), append(W, S, WS), append(WS, R, WSR),
-	assert(could_have(H, WSR)), assert(has(H, [])), assert(proof(H, [])),
+	assert(possible(H, WSR)), assert(known(H, [])), assert(proofs(H, [])),
 	init_players(T).
 
 
+%% card states for each player
+:- dynamic known/2.
+:- dynamic possible/2.
+:- dynamic proofs/2.
+
+
 %% controlling player, the one who uses this program
-:- dynamic control/1.
 %% define who you control and which cards you have
+:- dynamic control/1.
 control_player(P, CARDS) :- 
 	assert(control(P)),
-	set_has_multiple(P, CARDS).
+	set_known_multiple(P, CARDS).
 
 
 
@@ -47,7 +47,7 @@ control_player(P, CARDS) :-
 %% every player but SUGGESTER can't have suggested cards,
 %% since they didn't prove the suggestion
 unproven(SUGGESTER, CARDS) :- 
-	players(PLAYERS), member(P, PLAYERS), not(P = SUGGESTER), unset_could_have(P, CARDS).
+	players(PLAYERS), member(P, PLAYERS), not(P = SUGGESTER), unset_possible(P, CARDS).
 
 
 %% call this when a suggestion is proven, but you are not the suggester
@@ -56,20 +56,20 @@ unproven(SUGGESTER, CARDS) :-
 %% have to consider order as cyclical
 proven(SUGGESTER, PROVER, CARDS) :-
 	add_proof(PROVER, CARDS),
-	unset_could_have_for_all_between(SUGGESTER, PROVER, CARDS).
+	unset_possible_for_all_between(SUGGESTER, PROVER, CARDS).
 add_proof(P, PROOF) :-
-	proof(P, CURRENT), retract(proof(P, CURRENT)), 
-	append(CURRENT, [PROOF], NEW), assert(proof(P, NEW)).
+	proofs(P, CURRENT), retract(proofs(P, CURRENT)), 
+	append(CURRENT, [PROOF], NEW), assert(proofs(P, NEW)).
 
 %% same as other one, only we are making the suggestion 
 %% and therefore see which card the prover showed
 proven_to_me(SUGGESTER, PROVER, CARDS, SHOWN_CARD) :-
-	set_has(PROVER, SHOWN_CARD),
-	unset_could_have_for_all_between(SUGGESTER, PROVER, CARDS).
+	set_known(PROVER, SHOWN_CARD),
+	unset_possible_for_all_between(SUGGESTER, PROVER, CARDS).
 
 %% helper predicate for proofs
-unset_could_have_for_all_between(START, END, CARDS) :- 
-	player_between(START, END, P), unset_could_have(P, CARDS).
+unset_possible_for_all_between(START, END, CARDS) :- 
+	player_between(START, END, P), unset_possible(P, CARDS).
 %% return players between START and END, 
 %% if END is after START, return players that are after START AND before END
 player_between(START, END, P) :- 
@@ -83,7 +83,7 @@ players(PLAYERS),
 	append(BEFORE_E, [END|_], PLAYERS), (member(P, AFTER_S); member(P, BEFORE_E)).
 
 
-%% called after each alteration to could_have or has for any player
+%% called after each alteration to possible or known for any player
 %% need to do it for all players each time
 analyze_proofs_all() :-
 	players(PLAYERS), member(P, PLAYERS), analyze_proofs(P).
@@ -91,7 +91,7 @@ analyze_proofs_all() :-
 analyze_proofs(P) :-
 	setof(CARDS, generate_possible_hand(P, CARDS), ALL), 
 	intersection_of_sets(ALL, INTERSECTION), not(length(INTERSECTION, 0)),
-	set_has_multiple(P, INTERSECTION). %% need to check if intersection is already member of has, if it is, don't call set_has again
+	set_known_multiple(P, INTERSECTION). %% need to check if intersection is already member of known, if it is, don't call set_known again
 
 intersection_of_sets([], []).
 intersection_of_sets([H], H).
@@ -100,46 +100,59 @@ intersection_of_sets([H1|[H2|T]], INTER) :-
 	intersection(SORTED_H1, SORTED_H2, INTER), 
 	(length([H2|T], 1); intersection_of_sets([H2|T], INTER)).
 
+
+%% TODO: check if generated hand contains new info, set_known only if that's true, if set_has happens, set flag "new_info", check at the end if new info and if so run everything again
+%% the generated hand should contain ALL cards in known list, the rest must be from possible list
+%% can't contain only less than all cards in known list
+
 %% generate possible cards that player P could have
-%% these cards must either be in could have or has list of player P
-%% they also must together satisfy all proofs that P has done
+%% these cards must either be in could have or known list of player P
+%% they also must together satisfy all proofs that P known done
 generate_possible_hand(P, CARDS) :-
 	card_amount(CARD_AMOUNT),
 	length(UCARDS, CARD_AMOUNT),
-	all_could_or_has(P, UCARDS),
+	all_possible_or_known(P, UCARDS),
 	proves_all_proofs(P, UCARDS),
 	is_set(UCARDS),
 	sort(UCARDS, CARDS).
 
+%% true if A contains B
+contains(A, []).
+contains(A, [H]) :-
+	member(H, A).
+contains(A, [H|T]) :-
+	member(H, A), contains(A, T). 
 
-all_could_or_has(_, []).
-all_could_or_has(P, [H|T]) :-
-	has(P, HAS), could_have(P, COULD),
-	(member(H, HAS); member(H, COULD)),
-	all_could_or_has(P, T).
+
+
+all_possible_or_known(_, []).
+all_possible_or_known(P, [H|T]) :-
+	known(P, KNOWN), possible(P, POSSIBLE),
+	(member(H, KNOWN); member(H, POSSIBLE)),
+	all_possible_or_known(P, T).
 
 proves_all_proofs(P, CARDS) :-
-	proof(P, PROOFS), proves_all_proofs_helper(P, CARDS, PROOFS).
+	proofs(P, PROOFS), proves_all_proofs_helper(P, CARDS, PROOFS).
 proves_all_proofs_helper(P, CARDS, []).
 proves_all_proofs_helper(P, CARDS, [H|T]) :-
 	member(C, CARDS), member(C, H),
 	proves_all_proofs_helper(P, CARDS, T).
 
 	
-unset_could_have(P, CARDS) :-
-	could_have(P, CURRENT), subtract(CURRENT, CARDS, NEW), retract(could_have(P, CURRENT)), 
-	assert(could_have(P, NEW)).
+unset_possible(P, CARDS) :-
+	possible(P, CURRENT), subtract(CURRENT, CARDS, NEW), retract(possible(P, CURRENT)), 
+	assert(possible(P, NEW)).
 
-unset_could_have_for_everyone(CARDS) :- 
-	players(PLAYERS), member(P, PLAYERS), unset_could_have(P, CARDS).
+unset_possible_for_everyone(CARDS) :- 
+	players(PLAYERS), member(P, PLAYERS), unset_possible(P, CARDS).
 
-set_has(P, CARD) :- 
-	has(P, CURR), append(CURR, [CARD], NEW), sort(NEW, NEW_UNIQUE), retract(has(P, CURR)), 
-	assert(has(P, NEW_UNIQUE)), unset_could_have_for_everyone([CARD]), fail; true.
+set_known(P, CARD) :- 
+	known(P, CURR), append(CURR, [CARD], NEW), sort(NEW, NEW_UNIQUE), retract(known(P, CURR)), 
+	assert(known(P, NEW_UNIQUE)), unset_possible_for_everyone([CARD]), fail; true.
 
-set_has_multiple(P, []).
-set_has_multiple(P, [H|T]) :-
-	set_has(P, H), set_has_multiple(P, T). 
+set_known_multiple(P, []).
+set_known_multiple(P, [H|T]) :-
+	set_known(P, H), set_known_multiple(P, T). 
 
 
 
@@ -148,14 +161,14 @@ list :-
 	suspects(S), write("Suspects: "), writeln(S),
 	weapons(W), write("Weapons: "), writeln(W).
 
-list_could :- 
-	could_have(P, COULD), write("Player:"), writeln(P), write("Could have: "), writeln(COULD). 
+list_possible :- 
+	possible(P, CARDS), write("Player:"), writeln(P), write("Could have: "), writeln(CARDS). 
 
-list_has :- 
-	has(P, CARDS), write("Player:"), writeln(P), write("Has: "), writeln(CARDS). 
+list_known :- 
+	known(P, CARDS), write("Player:"), writeln(P), write("Has: "), writeln(CARDS). 
 
 list_proofs :- 
-	proof(P, CARDS), write("Player:"), writeln(P), write("Proved: "), writeln(CARDS). 
+	proofs(P, CARDS), write("Player:"), writeln(P), write("Proved: "), writeln(CARDS). 
 
 %% defaults for testing
 weapons([w1, w2, w3, w4, w5, w6]).

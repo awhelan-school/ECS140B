@@ -95,46 +95,10 @@ analyze_proofs_all() :-
 
 analyze_proofs(P, INTERSECTION) :-
 	setof(CARDS, generate_possible_hand(P, CARDS), ALL), 
-	not(length(ALL, 0)), intersection_of_sets(ALL, INTERSECTION).
-	%% set_known_multiple(P, INTERSECTION). %% need to check if intersection is already member of known, if it is, don't call set_known again
+	not(length(ALL, 0)), intersection_of_sets(ALL, INTERSECTION),
+	known(P, CURRENT),writeln("yay"), 
+	not(contains(CURRENT, INTERSECTION)), writeln("yay?"), set_known_multiple(P, INTERSECTION), writeln("yay"). %% need to check if intersection is already member of known, if it is, don't call set_known again
 
-
-%% TODO: problem is, need minimal intersection between all elements
-%% or actually maximal, needs to 
-
-%% intersection([H], H).
-%% intersection_of_sets([H1, H2|T], INTER) :-
-%% 	sort(H1, SORTED_H1), sort(H2, SORTED_H2),
-%% 	intersection(SORTED_H1, SORTED_H2, INTER),
-%% 	intersection_of_sets(H2|T, INTER), write(H2|T).
-
-%% intersection_of_sets([H|T], INTER) :-
-%% 	sort(H, SORTED_H),
-%% 	intersection_of_sets_helper(T, SORTED_H, INTER).
-%% intersection_of_sets_helper([H|T], PREV, REAL) :-
-%% 	sort(H, SORTED_H),
-%% 	intersection(SORTED_H, PREV, NEXT),
-%% 	intersection_of_sets_helper(H2|T, NEXT, REAL).
-
-%% intersection_of_sets([], []).
-%% intersection_of_sets([H], H).
-%% intersection_of_sets(SETS, INTER) :-
-%% 	not(length(SETS, 1)), intersection_of_sets_helper(SETS, INTER).
-
-%% intersection_of_sets([], []).
-%% intersection_of_sets([X], X).
-%% intersection_of_sets(SETS, INTER) :-
-%% 	not(length(SETS, 1)), not(length(SETS, 0)), 
-%% 	intersection_of_sets_helper(SETS, INTER).
-
-%% intersection_of_sets_helper([], _).
-%% intersection_of_sets_helper([_], _).
-%% intersection_of_sets_helper([H1, H2|T], INTER) :-
-%% 	write([H1, H2|T]), write(INTER), writeln(""),
-%% 	not(length([H1, H2|T], 1)), not(length([H1, H2|T], 0)), 
-%% 	sort(H1, SORTED_H1), sort(H2, SORTED_H2),
-%% 	contains(SORTED_H1, INTER), contains(SORTED_H2, INTER), 
-%% 	intersection_of_sets_helper([H2|T], INTER). %% stop when list has 1 element left
 
 %% handle special cases of empty and 1
 intersection_of_sets([], []).
@@ -214,10 +178,10 @@ list :-
 	weapons(W), write("Weapons: "), writeln(W).
 
 list_possible :- 
-	possible(P, CARDS), write("Player:"), writeln(P), write("Could have: "), writeln(CARDS). 
+	possible(P, CARDS), write("Player:"), writeln(P), write("Possible: "), writeln(CARDS). 
 
 list_known :- 
-	known(P, CARDS), write("Player:"), writeln(P), write("Has: "), writeln(CARDS). 
+	known(P, CARDS), write("Player:"), writeln(P), write("Known: "), writeln(CARDS). 
 
 list_proofs :- 
 	proofs(P, CARDS), write("Player:"), writeln(P), write("Proved: "), writeln(CARDS). 

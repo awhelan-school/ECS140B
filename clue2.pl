@@ -35,7 +35,7 @@ init_players([H|T]) :-
 :- dynamic control/1.
 control_player(P, CARDS) :- 
 	assert(control(P)),
-	set_known_multiple(P, CARDS).
+	set_known_multiple(P, CARDS), fail; true.
 
 
 
@@ -58,7 +58,7 @@ proven(SUGGESTER, PROVER, CARDS) :-
 	add_proof(PROVER, CARDS),
 	unset_possible_for_all_between(SUGGESTER, PROVER, CARDS).
 add_proof(P, PROOF) :-
-	proofs(P, CURRENT), retract(proofs(P, CURRENT)), 
+	proofs(P, CURRENT), not(member(PROOF, CURRENT)), retract(proofs(P, CURRENT)), 
 	append(CURRENT, [PROOF], NEW), assert(proofs(P, NEW)).
 
 %% same as other one, only we are making the suggestion 
@@ -88,17 +88,69 @@ players(PLAYERS),
 analyze_proofs_all() :-
 	players(PLAYERS), member(P, PLAYERS), analyze_proofs(P).
 
-analyze_proofs(P) :-
-	setof(CARDS, generate_possible_hand(P, CARDS), ALL), 
-	intersection_of_sets(ALL, INTERSECTION), not(length(INTERSECTION, 0)),
-	set_known_multiple(P, INTERSECTION). %% need to check if intersection is already member of known, if it is, don't call set_known again
+%% analyze_proofs(P) :-
+%% 	setof(CARDS, generate_possible_hand(P, CARDS), ALL), 
+%% 	intersection_of_sets(ALL, INTERSECTION), not(length(INTERSECTION, 0)),
+%% 	set_known_multiple(P, INTERSECTION). %% need to check if intersection is already member of known, if it is, don't call set_known again
 
+analyze_proofs(P, INTERSECTION) :-
+	setof(CARDS, generate_possible_hand(P, CARDS), ALL), 
+	not(length(ALL, 0)), intersection_of_sets(ALL, INTERSECTION).
+	%% set_known_multiple(P, INTERSECTION). %% need to check if intersection is already member of known, if it is, don't call set_known again
+
+
+%% TODO: problem is, need minimal intersection between all elements
+%% or actually maximal, needs to 
+
+%% intersection([H], H).
+%% intersection_of_sets([H1, H2|T], INTER) :-
+%% 	sort(H1, SORTED_H1), sort(H2, SORTED_H2),
+%% 	intersection(SORTED_H1, SORTED_H2, INTER),
+%% 	intersection_of_sets(H2|T, INTER), write(H2|T).
+
+%% intersection_of_sets([H|T], INTER) :-
+%% 	sort(H, SORTED_H),
+%% 	intersection_of_sets_helper(T, SORTED_H, INTER).
+%% intersection_of_sets_helper([H|T], PREV, REAL) :-
+%% 	sort(H, SORTED_H),
+%% 	intersection(SORTED_H, PREV, NEXT),
+%% 	intersection_of_sets_helper(H2|T, NEXT, REAL).
+
+%% intersection_of_sets([], []).
+%% intersection_of_sets([H], H).
+%% intersection_of_sets(SETS, INTER) :-
+%% 	not(length(SETS, 1)), intersection_of_sets_helper(SETS, INTER).
+
+%% intersection_of_sets([], []).
+%% intersection_of_sets([X], X).
+%% intersection_of_sets(SETS, INTER) :-
+%% 	not(length(SETS, 1)), not(length(SETS, 0)), 
+%% 	intersection_of_sets_helper(SETS, INTER).
+
+%% intersection_of_sets_helper([], _).
+%% intersection_of_sets_helper([_], _).
+%% intersection_of_sets_helper([H1, H2|T], INTER) :-
+%% 	write([H1, H2|T]), write(INTER), writeln(""),
+%% 	not(length([H1, H2|T], 1)), not(length([H1, H2|T], 0)), 
+%% 	sort(H1, SORTED_H1), sort(H2, SORTED_H2),
+%% 	contains(SORTED_H1, INTER), contains(SORTED_H2, INTER), 
+%% 	intersection_of_sets_helper([H2|T], INTER). %% stop when list has 1 element left
+
+%% handle special cases of empty and 1
 intersection_of_sets([], []).
-intersection_of_sets([H], H).
-intersection_of_sets([H1|[H2|T]], INTER) :-
-	sort(H1, SORTED_H1), sort(H2, SORTED_H2),
-	intersection(SORTED_H1, SORTED_H2, INTER), 
-	(length([H2|T], 1); intersection_of_sets([H2|T], INTER)).
+intersection_of_sets([X], X).
+intersection_of_sets(SETS, INTER) :-
+	not(length(SETS, 1)), not(length(SETS, 0)), 
+	SETS = [H|_],
+	intersection_of_sets_helper(SETS, H, INTER).
+	
+intersection_of_sets_helper([H], PREV, INTER) :-
+	sort(H, SORTED_H), intersection(SORTED_H, PREV, INTER).
+intersection_of_sets_helper([H|T], PREV, INTER) :-
+	not(length([H1, H2|T], 1)), not(length([H1, H2|T], 0)), 
+	sort(H, SORTED_H), intersection(SORTED_H, PREV, NEXT), intersection_of_sets_helper(T, NEXT, INTER). 
+
+
 
 
 %% TODO: check if generated hand contains new info, set_known only if that's true, if set_has happens, set flag "new_info", check at the end if new info and if so run everything again
@@ -117,7 +169,7 @@ generate_possible_hand(P, CARDS) :-
 	sort(UCARDS, CARDS).
 
 %% true if A contains B
-contains(A, []).
+%% contains(_, []).
 contains(A, [H]) :-
 	member(H, A).
 contains(A, [H|T]) :-
@@ -133,7 +185,7 @@ all_possible_or_known(P, [H|T]) :-
 
 proves_all_proofs(P, CARDS) :-
 	proofs(P, PROOFS), proves_all_proofs_helper(P, CARDS, PROOFS).
-proves_all_proofs_helper(P, CARDS, []).
+proves_all_proofs_helper(_, _, []).
 proves_all_proofs_helper(P, CARDS, [H|T]) :-
 	member(C, CARDS), member(C, H),
 	proves_all_proofs_helper(P, CARDS, T).
@@ -150,7 +202,7 @@ set_known(P, CARD) :-
 	known(P, CURR), append(CURR, [CARD], NEW), sort(NEW, NEW_UNIQUE), retract(known(P, CURR)), 
 	assert(known(P, NEW_UNIQUE)), unset_possible_for_everyone([CARD]), fail; true.
 
-set_known_multiple(P, []).
+set_known_multiple(_, []).
 set_known_multiple(P, [H|T]) :-
 	set_known(P, H), set_known_multiple(P, T). 
 
@@ -205,10 +257,21 @@ proven(s4, s1, [w3, s1, r1]).
 proven(s4, s1, [w3, s1, r2]).
 proven(s4, s1, [w3, s1, r3]).
 
+proven(s4, s1, [w3, s5, r3]).
+
 proven(s4, s1, [w1, s2, r1]).
 proven(s4, s1, [w1, s2, r2]).
 proven(s4, s1, [w1, s2, r3]).
 proven(s4, s1, [w1, s1, r4]).
 proven(s4, s1, [w1, s2, r4]).
 proven(s4, s1, [w1, s3, r4]).
+
+
+EXAMPLE:
+after this s1 must have w3 and w4, because controlling player has s1 and r1
+add_players([s1, s2, s3, s4, s5, s6]).
+control_player(s3, [s1, w1, r1]).
+proven(s4, s1, [w3, s1, r1]).
+proven(s4, s1, [w4, s1, r1]).
+
 */

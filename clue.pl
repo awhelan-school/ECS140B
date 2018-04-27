@@ -5,10 +5,15 @@
 :- dynamic order/1.
 :- dynamic cards/1.
 :- dynamic suspects/1.
+% player(X, [known cards], [possible cards]).
 :- dynamic player/3.
 :- dynamic weapons_base/1.
 :- dynamic suspects_base/1.
 :- dynamic rooms_base/1.
+
+% Record all suggestions
+% suggestion(PLAYER_NAME,[[Suggestion1], [Suggestion2]])
+:- dynamic suggestions/2.
 
 :- initialization(init).
 
@@ -27,7 +32,7 @@ showPlayers([]).
 showPlayers([H|T]) :- player(H,Y,Z), writeln(H), writeln(Y), writeln(Z),
                       showPlayers(T).
 
-% player(X, [known cards], [possible cards]).
+
 
 init :-
   /*
@@ -79,7 +84,8 @@ init :-
   prompt.
 
 initPlayers([], [], _).
-initPlayers([H|T], [], A) :- assert(player(H, [], A)), initPlayers(T, [], A).
+initPlayers([H|T], [], A) :- assert(player(H, [], A)), assert(suggestions(H, [])),
+                             initPlayers(T, [], A).
 initPlayers('*', C, _) :- retract(player('*', _, _)),
                           assert(player('*', C, [])).
 
@@ -103,23 +109,48 @@ prompt :-
   choice(C),
   prompt.
 
-% suggestion(PLAYER_NAME,[[Suggestion1], [Suggestion2]])
 
-
-choice(5).
+choice(5):- fail.
 choice(4) :- order(O), showPlayers(O).
 choice(3) :- showData.
 
 % Observed Suggestion
+% Format Q1 : [PLAYER, S1, S2, S3]
+% Format Q2 : [PLAYER] | [No]
 choice(2) :- write("What did you observe?\n"), readln(In),
-             filterObservation(In, Out), writeln(Out).
+             filterObservation(In, Out),
+             write("Did anyone show a card? If not say no\n"),
+             readln(In2), filterObservation(In2, Prover),
+             recordSuggestion(Prover, Out).
 
 % Player Suggestion
 choice(1) :- write("What is your suggestion?\n"),readln(In),nl,
              filterSuggestion(In, Suggestion),
              write("Did you learn anything? If not say No.\n"),nl,
-             readln(In2), parseSuggestion(In2, Suggestion, Proof),
+             readln(In2), parseSuggestion(In2, Suggestion, Proof), writeln(Proof),
              updateCards(Proof, Suggestion).
+
+% If nobody showed a card
+recordSuggestion([], [_|Cards]) :- updateCards([], Cards).
+
+% Record Suggestion for Person who Proved
+recordSuggestion(Player, [Suggestor|Cards]) :-
+
+  member(Prover, Player),
+  term_string(Prover, _),term_string(Suggestor, _),
+
+  suggestions(Prover, X), append(X, [Cards], XT),
+  retract(suggestions(Prover, _)),
+  assert(suggestions(Prover, XT)),
+
+  % Remove Cards in between if any
+  removeCardsBetween(Suggestor, Prover, Cards), fail;true.
+
+
+% If Nothing Proven
+updateCards([], SuggestedCards) :-
+  player(Other,_,_), removePossibleCards(Other, SuggestedCards), fail; true,
+  removeGlobalCards(SuggestedCards).
 
 updateCards([Person|Card], SuggestedCards) :-
   % If suggestion is proven remove from global possabilities
@@ -165,11 +196,6 @@ removeCardsBetween(Person1, Person2, Cards) :-
   player_between(Person1, Person2, PersonBW),term_string(PersonBW, _),
   removePossibleCards(PersonBW, Cards).
 
-
-parseSuggestion([No], S, P) :- endgame(S),!.
-parseSuggestion([no], S, P) :- endgame(S),!.
-parseSuggestion([N],  S, P) :- endgame(S),!.
-parseSuggestion([n],  S, P) :- endgame(S),!.
 
 parseSuggestion(In, S, Proof) :- filterObservation(In, Proof).
 

@@ -15,6 +15,13 @@
 % suggestion(PLAYER_NAME,[[Suggestion1], [Suggestion2]])
 :- dynamic suggestions/2.
 
+% This holds the difinitive 3 solution Cards
+:- dynamic solutions/1.
+
+% Inplay Helper predicate that returns all possible cards in single list_known
+inplay(Cards) :- rooms(R), weapons(W), suspects(S),
+                 append(R, W, RW), append(RW, S, Cards).
+
 :- initialization(init).
 
 is_member(_, Y) :-
@@ -83,6 +90,9 @@ init :-
   order(O),initPlayers(O, [], All), initPlayers('*', C, []),
   prompt.
 
+
+control('*').
+
 initPlayers([], [], _).
 initPlayers([H|T], [], A) :- assert(player(H, [], A)), assert(suggestions(H, [])),
                              initPlayers(T, [], A).
@@ -101,7 +111,7 @@ prompt :-
   write("\n"),
   write("[1] Make a Suggestion\n"),
   write("[2] Observe a Suggestion\n"),
-  write("[3] Show Data\n"),
+  write("[3] Show Possible Cards\n"),
   write("[4] Show Players\n"),
   write("[5] End Game\n"),
   write("Choice: "),nl,

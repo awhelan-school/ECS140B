@@ -90,7 +90,8 @@ init :-
   order(O),initPlayers(O, [], All), initPlayers('*', C, []),
   prompt.
 
-
+% Helper function
+% Sample Usage: order(Players), member(Player, Players), control(Player),!.
 control('*').
 
 initPlayers([], [], _).

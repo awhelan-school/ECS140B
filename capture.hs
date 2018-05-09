@@ -1,6 +1,239 @@
 import Data.List
 
 
+-- arg order = previous control state...
+
+--capture :: [String] -> Char -> Int -> String
+--capture previous control depth
+-- return move selected by heuristic
+-- do all_moves for my moves, then call all_moves on each result again for opponent's move
+-- call heuristic() to evaluate, do minimax
+
+-- "-wWw--www-------bbb--bBb-"
+-- 0,0 is in the top right corner
+
+
+--need to alternate max/min
+--max on depth=odd
+--min on depth=even
+--call heuristic on bottom level, w or b depending on which turn was performed
+--carry score up
+--remember to append previous states to previous list
+--test previous state iteration_control control depth depth_max
+--	| (depth == depth_max) && (control == iteration_control)		= maximumBy of all moves for control
+--	| (depth == depth_max) && (control != iteration_control)		= 
+--	| control == 'w'  	= maximumBy heuristic_w (concat (map (\next_state -> test previous next_state 'b' (depth - 1)) 
+--		(all_moves previous control state)))
+--	| control == 'b'  	= maximumBy heuristic_b (concat (map (\next_state -> test previous next_state 'w' (depth - 1)) 
+--		(all_moves previous control state)))
+
+-- detect wins here
+-- no moves, or reached end or flag captured or...
+--terminal previous state =
+
+--minimax previous state iteration_control control depth
+--	| depth == 0 			= heuristic control state
+--	| control == iteration_control	= 
+
+--map score to all moves generated from state, get max/min of 
+
+--count_chars :: String -> Char -> Int
+--count_chars str c = length $ filter (== c) str
+
+--compare_heuristic x y
+--	| heuristic
+
+--heuristic_w state = heuristic state 'w'
+--heuristic_b state = heuristic state 'b'
+--heuristic state control = count_chars state control
+
+get_y :: Int -> Int
+get_y z = 
+	div z 5
+
+get_x :: Int -> Int
+get_x z = 
+	mod z 5
+
+index :: Int -> Int -> Int
+index x y = 
+	x + (y * 5)
+
+unit_at :: String -> Int -> Int -> Char
+unit_at state x y 
+	| (out_of_bounds x y) = 'E' 
+	| otherwise 		= state !! (index x y)
+
+out_of_bounds :: Int -> Int -> Bool
+out_of_bounds x y = 
+	0 > x || x > 4 || 0 > y || y > 4
+
+
+forward :: Char -> Int
+forward control
+	| control == 'w' = 1
+	| control == 'b' = -1
+
+is_enemy :: Char -> Char -> Bool
+is_enemy me other
+	| (me == 'w' || me == 'W') = (other == 'b' || other == 'B')
+	| (me == 'b' || me == 'B') = (other == 'w' || other == 'W')
+	| otherwise 			   = False
+
+my_unit :: Char -> Char -> Bool
+my_unit me unit
+	| (me == 'w' || me == 'W') = (unit == 'w' || unit == 'W')
+	| (me == 'b' || me == 'B') = (unit == 'b' || unit == 'B')
+	| otherwise 			   = False
+
+
+get_dx :: Char -> Int -> Int
+get_dx unit i
+	| (unit == 'w' || unit == 'b') = pawn_dx unit i 
+	| (unit == 'W' || unit == 'B') = flag_dx unit i 
+
+get_dy :: Char -> Int -> Int
+get_dy unit i
+	| (unit == 'w' || unit == 'b') = pawn_dy unit i 
+	| (unit == 'W' || unit == 'B') = flag_dy unit i 
+
+-- pawn moves:
+-- (-1, 0)
+-- (1, 0)
+-- (0, forward)
+-- (-2, 0)
+-- (2, 0)
+-- (0, 2 * forward)
+pawn_dx :: Char -> Int -> Int
+pawn_dx control i
+	| i == 0 = (-1)
+	| i == 1 = 1
+	| i == 2 = 0
+	| i == 3 = (-2)
+	| i == 4 = 2
+	| i == 5 = 0
+pawn_dy :: Char -> Int -> Int
+pawn_dy control i
+	| i == 0 = 0
+	| i == 1 = 0
+	| i == 2 = (forward control)
+	| i == 3 = 0
+	| i == 4 = 0
+	| i == 5 = 2 * (forward control)
+
+-- flag moves:
+-- (-1, 0)
+-- (1, 0)
+-- (0, 1)
+-- (0, -1)
+flag_dx :: Char -> Int -> Int
+flag_dx control i
+	| i == 0 = (-1)
+	| i == 1 = 1
+	| i == 2 = 0
+	| i == 3 = 0
+flag_dy :: Char -> Int -> Int
+flag_dy control i
+	| i == 0 = 0
+	| i == 1 = 0
+	| i == 2 = 1
+	| i == 3 = (-1)
+
+
+slice :: Int -> Int -> String -> String
+slice from to xs = take (to - from + 1) (drop from xs)
+
+print_5x5 :: String -> IO ()
+print_5x5 state = do
+	putStrLn (slice 0 4 state)
+	putStrLn (slice 5 9 state)
+	putStrLn (slice 10 14 state)
+	putStrLn (slice 15 19 state)
+	putStrLn (slice 20 24 state)
+
+print_list :: [String] -> IO ()
+print_list list
+	| length list > 0 = do
+		print_5x5 (head list)
+		putStrLn " "
+		print_list (tail list)
+	| otherwise = return ()
+
+
+
+
+-- go through board, get all pieces of same faction
+-- get possible moves for them
+-- substract previous states (\\)
+all_moves :: [String] -> Char -> String -> [String]
+all_moves previous control state =
+	concat (map (\z -> moves previous control state z) [0..24])
+
+
+-- get a list of possible moves(as strings of resulting states)
+-- 6 moves for pawns, 4 moves for flags
+moves :: [String] -> Char -> String -> Int -> [String]
+moves previous control state z
+	| (my_unit control unit) && (unit == 'w' || unit == 'b') =
+		(moves_helper state (get_x z) (get_y z) 5) \\ previous
+	| (my_unit control unit) =
+		(moves_helper state (get_x z) (get_y z) 3) \\ previous
+	where 
+		unit = unit_at state (get_x z) (get_y z)
+
+moves_helper :: String -> Int -> Int -> Int -> [String]
+moves_helper state x y i
+	| i < 0  								= []
+	| (move_is_legal state x y dx dy) 	  	= [(apply_move state x y dx dy)] ++ (moves_helper state x y (i - 1))
+	| otherwise 							= moves_helper state x y (i - 1)
+	where
+		dx = get_dx (unit_at state x y) i
+		dy = get_dy (unit_at state x y) i
+
+
+-- not out of bounds
+-- destination is empty
+-- if jumping(dx or dy > 2) there is an enemy to jump over
+move_is_legal :: String -> Int -> Int -> Int -> Int -> Bool 
+move_is_legal state x y dx dy =
+	not(out_of_bounds destination_x destination_y)
+	&& (unit_at state destination_x destination_y) == '-'
+	&& (((abs dx) < 2 && (abs dy) < 2) 
+		|| (is_enemy (unit_at state x y) (unit_at state jump_x jump_y)))
+	where
+		destination_x 	= x + dx
+		destination_y 	= y + dy
+		jump_x 			= x + (signum dx)
+		jump_y 			= y + (signum dy)
+
+
+
+set_at :: String -> Int -> Int -> Char -> String
+set_at list x y unit =
+	take (index x y) list ++ [unit] ++ drop ((index x y) + 1) list
+
+
+-- erase unit in front if jumping
+-- draw unit at new position
+-- erase unit at old position
+apply_move :: String -> Int -> Int -> Int -> Int -> String
+apply_move state x y dx dy
+	| ((abs dx) == 2) || ((abs dy) == 2) =
+		set_at (set_at (set_at state
+			jump_x jump_y '-')
+			destination_x destination_y (unit_at state x y))
+			x y '-'
+	| otherwise =
+		(set_at (set_at state 
+			destination_x destination_y (unit_at state x y))
+			x y '-') 
+	where
+		destination_x 	= x + dx
+		destination_y 	= y + dy
+		jump_x 			= x + (signum dx)
+		jump_y 			= y + (signum dy)import Data.List
+
+
 --capture :: [String] -> Char -> Int -> String
 --capture previous control depth
 -- return move selected by heuristic

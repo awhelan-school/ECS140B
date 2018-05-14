@@ -92,12 +92,25 @@ is_win previous control =
 		state = (head previous)
 		enemy = opposite control
 
+why_won previous control 
+	| (num_pawns state enemy) == 0  		= "captured all pawns"
+	| (count_chars state (flag enemy)) == 0 = "captured flag"
+	| null (all_moves previous enemy)       = "enemy can't make a legal move"
+	| (flag_passed_pawns state control)     = "flag moved past all pawns"
+	| otherwise								= "didn't actually win"
+	where 
+		state = (head previous)
+		enemy = opposite control
+
 
 -- heuristic vs heuristic
 game_hvh previous control
 	| is_win previous control = do
 		print control
+		print_5x5 (head previous)
+		print control
 		print " wins!"
+		print (why_won previous control)
 	| control == 'b' 		  = do
 		putStrLn "Minimax's turn, Current board:"
 		print_5x5 (head previous)
@@ -107,8 +120,8 @@ game_hvh previous control
 		print_5x5 (head previous)
 		game_hvh ((minimax previous control 2 b_heuristic):previous) (opposite control)  
 	where
-		w_heuristic = h_pawn_count
 		b_heuristic = h_flag_y
+		w_heuristic = h_pawn_count
 
 
 

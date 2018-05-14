@@ -10,6 +10,55 @@ import Data.List
 start_game = game_hvh ["-wWw--www-------bbb--bBb-"] 'w'
 
 
+test_h heuristic_a heuristic_b 
+	| (not a_first) && (not a_second) 	= do
+		putStrLn "Heuristic lost"
+	| a_first && a_second 		= do
+		putStrLn "Heuristic won twice"
+	| otherwise 					= do
+		putStrLn "Heuristic won once, lost once"
+	where
+		a_first = game_hvh_silent ["-wWw--www-------bbb--bBb-"] 'w' heuristic_a heuristic_b
+		a_second = not (game_hvh_silent ["-wWw--www-------bbb--bBb-"] 'w' heuristic_b heuristic_a)
+
+--returns true if white wins, false if black wins
+game_hvh_silent previous control w_heuristic b_heuristic
+	| is_win previous 'w' = True
+	| is_win previous 'b' = False
+	| control == 'w' 		  = game_hvh_silent ((minimax previous control 2 w_heuristic):previous) (opposite control) w_heuristic b_heuristic
+	| otherwise   		  	  = game_hvh_silent ((minimax previous control 2 b_heuristic):previous) (opposite control) w_heuristic b_heuristic
+
+
+-- heuristic vs heuristic
+game_hvh previous control
+	| is_win previous control = do
+		print control
+		print_5x5 (head previous)
+		print control
+		print "wins!"
+		print (why_won previous control)
+	| is_win previous enemy = do
+		print enemy
+		print_5x5 (head previous)
+		print enemy
+		print "wins!"
+		print (why_won previous enemy)
+	| control == 'w' 		  = do
+		putStrLn "Minimax's turn, Current board:"
+		print_5x5 (head previous)
+		game_hvh ((minimax previous control 2 w_heuristic):previous) enemy  
+	| otherwise   		  	  = do
+		putStrLn "Minimax's turn, Current board:"
+		print_5x5 (head previous)
+		game_hvh ((minimax previous control 2 b_heuristic):previous) enemy  
+	where
+		enemy       = opposite control
+		w_heuristic = h_simple
+		b_heuristic = h_pawn_count
+
+
+
+-- HEURISTICS
 h_static :: [String] -> Char -> Int
 h_static previous control = 0
 
@@ -48,8 +97,6 @@ h_pawn_count3 previous control
 		state = (head previous)
 		enemy = opposite control
 
-
-
 h_flag_y :: [String] -> Char -> Int
 h_flag_y previous control 
 	| is_win previous control 	= 1000
@@ -77,32 +124,6 @@ enemies_ahead_of_flag_b state =
 		reversed = reverse state
 
 
--- heuristic vs heuristic
-game_hvh previous control
-	| is_win previous control = do
-		print control
-		print_5x5 (head previous)
-		print control
-		print "wins!"
-		print (why_won previous control)
-	| is_win previous enemy = do
-		print enemy
-		print_5x5 (head previous)
-		print enemy
-		print "wins!"
-		print (why_won previous enemy)
-	| control == 'w' 		  = do
-		putStrLn "Minimax's turn, Current board:"
-		print_5x5 (head previous)
-		game_hvh ((minimax previous control 2 w_heuristic):previous) enemy  
-	| otherwise   		  	  = do
-		putStrLn "Minimax's turn, Current board:"
-		print_5x5 (head previous)
-		game_hvh ((minimax previous control 2 b_heuristic):previous) enemy  
-	where
-		enemy       = opposite control
-		b_heuristic = h_pawn_count2
-		w_heuristic = h_simple
 
 
 

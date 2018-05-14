@@ -18,7 +18,7 @@ h_pawn_count :: [String] -> Char -> Int
 h_pawn_count previous control 
 	| is_win previous control 	= 1000
 	| is_win previous enemy 	= -1000 
-	| otherwise 				= (count_chars state control) - (count_chars state enemy)
+	| otherwise 				= (count_chars state control)
 	where
 		state = (head previous)
 		enemy = opposite control
@@ -111,7 +111,7 @@ game_hvh previous control
 		print control
 		print " wins!"
 		print (why_won previous control)
-	| control == 'b' 		  = do
+	| control == 'w' 		  = do
 		putStrLn "Minimax's turn, Current board:"
 		print_5x5 (head previous)
 		game_hvh ((minimax previous control 2 w_heuristic):previous) (opposite control)  
@@ -120,8 +120,8 @@ game_hvh previous control
 		print_5x5 (head previous)
 		game_hvh ((minimax previous control 2 b_heuristic):previous) (opposite control)  
 	where
-		b_heuristic = h_flag_y
-		w_heuristic = h_pawn_count
+		w_heuristic = h_flag_y
+		b_heuristic = h_pawn_count
 
 
 

@@ -8,7 +8,7 @@ import Data.List
 -- add typing and comments to all functions
 -- rearrange functions??? tried to keep it C style, but I think it would be better to group by type(helpers on bottom, main routines on top)
 -- remove hardcoded width of 5 from everything, replace with width = sqrt (length state)
-
+-- investigate why minimax sometimes fails to move flag away from obvious death
 
 start_game = game_hvh ["-wWw--www-------bbb--bBb-"] 'w'
 
@@ -19,6 +19,15 @@ h_pawn_count previous control
 	| is_win previous control 	= 1000
 	| is_win previous enemy 	= -1000 
 	| otherwise 				= (count_chars state control)
+	where
+		state = (head previous)
+		enemy = opposite control
+
+h_pawn_count2 :: [String] -> Char -> Int
+h_pawn_count2 previous control 
+	| is_win previous control 	= 1000
+	| is_win previous enemy 	= -1000 
+	| otherwise 				= (count_chars state control) - (count_chars state enemy)
 	where
 		state = (head previous)
 		enemy = opposite control
@@ -109,19 +118,26 @@ game_hvh previous control
 		print control
 		print_5x5 (head previous)
 		print control
-		print " wins!"
+		print "wins!"
 		print (why_won previous control)
+	| is_win previous enemy = do
+		print enemy
+		print_5x5 (head previous)
+		print enemy
+		print "wins!"
+		print (why_won previous enemy)
 	| control == 'w' 		  = do
 		putStrLn "Minimax's turn, Current board:"
 		print_5x5 (head previous)
-		game_hvh ((minimax previous control 2 w_heuristic):previous) (opposite control)  
+		game_hvh ((minimax previous control 2 w_heuristic):previous) enemy  
 	| otherwise   		  	  = do
 		putStrLn "Minimax's turn, Current board:"
 		print_5x5 (head previous)
-		game_hvh ((minimax previous control 2 b_heuristic):previous) (opposite control)  
+		game_hvh ((minimax previous control 2 b_heuristic):previous) enemy  
 	where
-		w_heuristic = h_flag_y
+		enemy       = opposite control
 		b_heuristic = h_pawn_count
+		w_heuristic = h_static
 
 
 

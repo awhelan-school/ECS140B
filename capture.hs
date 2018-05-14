@@ -8,11 +8,12 @@ import Data.List
 -- add typing and comments to all functions
 -- rearrange functions??? tried to keep it C style, but I think it would be better to group by type(helpers on bottom, main routines on top)
 -- remove hardcoded width of 5 from everything, replace with width = sqrt (length state)
--- investigate why minimax sometimes fails to move flag away from obvious death
 
 start_game = game_hvh ["-wWw--www-------bbb--bBb-"] 'w'
 
 
+h_static :: [String] -> Char -> Int
+h_static previous control = 0
 
 h_pawn_count :: [String] -> Char -> Int
 h_pawn_count previous control 
@@ -42,11 +43,50 @@ h_flag_y previous control
 		state = (head previous)
 		enemy = opposite control
 
-h_static :: [String] -> Char -> Int
-h_static previous control = 10
+h_flag_to_pawns_distance :: [String] -> Char -> Int
+h_flag_to_pawns_distance previous control 
+	| is_win previous control 	= 1000
+	| is_win previous enemy 	= -1000 
+	| control == 'w' 			= flag_pawns_distance_w (head previous)
+	| otherwise					= flag_pawns_distance_b (head previous)
+	where
+		state = (head previous)
+		enemy = opposite control
+flag_pawns_distance_w state =
+	0 - (count_chars (drop ((maybe 0 get_y (elemIndex 'W' state)) * 5) state) 'b')
+flag_pawns_distance_b state =
+	0 - (count_chars (drop ((maybe 0 get_y (elemIndex 'B' state)) * 5) reversed) 'w')
+	where
+		reversed = reverse state
 
 
 
+-- heuristic vs heuristic
+game_hvh previous control
+	| is_win previous control = do
+		print control
+		print_5x5 (head previous)
+		print control
+		print "wins!"
+		print (why_won previous control)
+	| is_win previous enemy = do
+		print enemy
+		print_5x5 (head previous)
+		print enemy
+		print "wins!"
+		print (why_won previous enemy)
+	| control == 'w' 		  = do
+		putStrLn "Minimax's turn, Current board:"
+		print_5x5 (head previous)
+		game_hvh ((fst (minimax previous control control 2 w_heuristic)):previous) enemy  
+	| otherwise   		  	  = do
+		putStrLn "Minimax's turn, Current board:"
+		print_5x5 (head previous)
+		game_hvh ((fst (minimax previous control control 2 b_heuristic)):previous) enemy  
+	where
+		enemy       = opposite control
+		w_heuristic = h_static
+		b_heuristic = h_pawn_count2
 
 
 
@@ -112,32 +152,6 @@ why_won previous control
 		enemy = opposite control
 
 
--- heuristic vs heuristic
-game_hvh previous control
-	| is_win previous control = do
-		print control
-		print_5x5 (head previous)
-		print control
-		print "wins!"
-		print (why_won previous control)
-	| is_win previous enemy = do
-		print enemy
-		print_5x5 (head previous)
-		print enemy
-		print "wins!"
-		print (why_won previous enemy)
-	| control == 'w' 		  = do
-		putStrLn "Minimax's turn, Current board:"
-		print_5x5 (head previous)
-		game_hvh ((minimax previous control 2 w_heuristic):previous) enemy  
-	| otherwise   		  	  = do
-		putStrLn "Minimax's turn, Current board:"
-		print_5x5 (head previous)
-		game_hvh ((minimax previous control 2 b_heuristic):previous) enemy  
-	where
-		enemy       = opposite control
-		b_heuristic = h_pawn_count
-		w_heuristic = h_static
 
 
 
@@ -178,7 +192,7 @@ game_pvh previous control
 	| control == 'b' 		  = do
 		putStrLn "Minimax's turn, Current board:"
 		print_5x5 (head previous)
-		game_pvh ((minimax previous control 2 heuristic):previous) (opposite control)  
+		game_pvh ((fst (minimax previous control control 2 heuristic)):previous) (opposite control)  
 	| otherwise 			  = do
 		putStrLn "Player's turn, Current board:"
 		print_5x5 (head previous)
@@ -195,33 +209,23 @@ compare_states x y
 	| otherwise			 = GT
 
 
-minimax :: [String] -> Char -> Int -> ([String] -> Char -> Int) -> String
-minimax previous control depth heuristic
-	| depth == 0 						= head previous
+
+
+minimax :: [String] -> Char -> Char -> Int -> ([String] -> Char -> Int) -> (String, Int)
+minimax previous control max_control depth heuristic
+	| (depth == 0) || (is_win previous control) || (is_win previous (opposite control)) = 
+		(head previous, heuristic previous max_control) --reached max depth
+	| control == max_control 				= 
+		(fst max, (snd max))
 	| otherwise			 				= 
-		fst (maximumBy compare_states 
-			(map (\new_state -> minimax_helper (new_state:previous) new_control new_depth True heuristic) 
+		(fst min, (snd min))
+	where
+		max = (maximumBy compare_states (map 
+			(\new_state -> minimax (new_state:previous) (opposite control) max_control (depth - 1) heuristic) 
 			(all_moves previous control)))
-	where
-		new_control = opposite control
-		new_depth   = depth - 1
-
-
-minimax_helper :: [String] -> Char -> Int -> Bool -> ([String] -> Char -> Int) -> (String, Int)
-minimax_helper previous control depth maximizing heuristic
-	| (depth == 0) || (is_win previous control) || (is_win previous new_control) = 
-		(head previous, heuristic previous control) --reached max depth
-	| maximizing == True 				= 
-		(head previous, (snd (maximumBy compare_states (map 
-			(\new_state -> minimax_helper (new_state:previous) new_control new_depth (not maximizing) heuristic) 
-			(all_moves previous control)))))
-	| otherwise			 				= 
-		(head previous, (snd (minimumBy compare_states (map 
-			(\new_state -> minimax_helper (new_state:previous) new_control new_depth (not maximizing) heuristic) 
-			(all_moves previous control)))))
-	where
-		new_control = opposite control
-		new_depth   = depth - 1
+		min = (minimumBy compare_states (map 
+			(\new_state -> minimax (new_state:previous) (opposite control) max_control (depth - 1) heuristic) 
+			(all_moves previous control)))
 
 
 count_chars :: String -> Char -> Int

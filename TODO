@@ -1,6 +1,0 @@
-rewrite everything to account for variable playfield size(use sqrt(state) for width)
-minimax
-driver for the game to take 2 move input functions
-write human input function
-
-think about which heuristics to use

@@ -10,7 +10,8 @@ import Data.List
 -- remove hardcoded width of 5 from everything, replace with width = sqrt (length state)
 
 
-start_game = game3 ["-wWw--www-------bbb--bBb-"] 'w'
+start_game = game_hvh ["-wWw--www-------bbb--bBb-"] 'w'
+
 
 
 h_pawn_count :: [String] -> Char -> Int
@@ -22,15 +23,15 @@ h_pawn_count previous control
 		state = (head previous)
 		enemy = opposite control
 
---h_flag_y :: [String] -> Char -> Int
---h_flag_y previous control 
---	| is_win previous control 	= 1000
---	| is_win previous enemy 	= -1000 
---	| control == 'w' 			= maybe 0 get_y (elemIndex 'W' state)
---	| otherwise					= maybe 0 get_y (elemIndex 'B' (reverse state))
---	where
---		state = (head previous)
---		enemy = opposite control
+h_flag_y :: [String] -> Char -> Int
+h_flag_y previous control 
+	| is_win previous control 	= 1000
+	| is_win previous enemy 	= -1000 
+	| control == 'w' 			= maybe 0 get_y (elemIndex 'W' state)
+	| otherwise					= maybe 0 get_y (elemIndex 'B' (reverse state))
+	where
+		state = (head previous)
+		enemy = opposite control
 
 h_static :: [String] -> Char -> Int
 h_static previous control = 10
@@ -100,11 +101,15 @@ game_hvh previous control
 	| control == 'b' 		  = do
 		putStrLn "Minimax's turn, Current board:"
 		print_5x5 (head previous)
-		game3 ((minimax previous control 2 h_pawn_count):previous) (opposite control)  
+		game_hvh ((minimax previous control 2 w_heuristic):previous) (opposite control)  
 	| otherwise   		  	  = do
 		putStrLn "Minimax's turn, Current board:"
 		print_5x5 (head previous)
-		game3 ((minimax previous control 2 h_static):previous) (opposite control)  
+		game_hvh ((minimax previous control 2 b_heuristic):previous) (opposite control)  
+	where
+		w_heuristic = h_pawn_count
+		b_heuristic = h_flag_y
+
 
 
 --player vs player
@@ -119,7 +124,7 @@ game_pvp previous control
 		putStr "Possible moves:\n"
 		print_list (all_moves previous control)
 		move_index <- readLn
-		game (((all_moves previous control) !! move_index):previous) (opposite control) 
+		game_pvp (((all_moves previous control) !! move_index):previous) (opposite control) 
 
 
 readInts :: IO [Int]
@@ -144,13 +149,15 @@ game_pvh previous control
 	| control == 'b' 		  = do
 		putStrLn "Minimax's turn, Current board:"
 		print_5x5 (head previous)
-		game2 ((minimax previous control 2 heuristic):previous) (opposite control)  
+		game_pvh ((minimax previous control 2 heuristic):previous) (opposite control)  
 	| otherwise 			  = do
 		putStrLn "Player's turn, Current board:"
 		print_5x5 (head previous)
 		move_input <- read4Ints previous control
-		game2 ((apply_move (head previous) 
+		game_pvh ((apply_move (head previous) 
 			(move_input!!0) (move_input!!1) (move_input!!2) (move_input!!3)):previous) (opposite control)
+	where
+		heuristic = h_static
 
 compare_states :: (String, Int) -> (String, Int) -> Ordering
 compare_states x y

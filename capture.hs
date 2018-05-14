@@ -2,8 +2,6 @@ import Data.List
 
 
 -- TODO
--- move checking for repeated states into move_is_legal(remove from everywhere else)
--- implement games between one heuristic vs list of heuristics, might be needed later for when we'll have to test against many heuristics
 -- clean up driver, maybe send to teacher
 -- add typing and comments to all functions
 -- rearrange functions??? tried to keep it C style, but I think it would be better to group by type(helpers on bottom, main routines on top)
@@ -40,6 +38,17 @@ h_pawn_count2 previous control
 	where
 		state = (head previous)
 		enemy = opposite control
+
+h_pawn_count3 :: [String] -> Char -> Int
+h_pawn_count3 previous control 
+	| is_win previous control 	= 1000
+	| is_win previous enemy 	= -1000 
+	| otherwise 				= 0 - (count_chars state enemy)
+	where
+		state = (head previous)
+		enemy = opposite control
+
+
 
 h_flag_y :: [String] -> Char -> Int
 h_flag_y previous control 
@@ -92,11 +101,58 @@ game_hvh previous control
 		game_hvh ((minimax previous control 2 b_heuristic):previous) enemy  
 	where
 		enemy       = opposite control
+		b_heuristic = h_pawn_count2
 		w_heuristic = h_simple
-		b_heuristic = h_static
 
 
 
+
+--player vs player
+game_pvp previous control
+	| is_win previous control = do
+		print control
+		print " wins!"
+	| otherwise = do
+		putStrLn "Current:"
+		print control
+		print_5x5 (head previous)
+		putStr "Possible moves:\n"
+		print_list (all_moves previous control)
+		move_index <- readLn
+		game_pvp (((all_moves previous control) !! move_index):previous) (opposite control) 
+
+
+readInts :: IO [Int]
+readInts = fmap (map read.words) getLine
+
+read4Ints :: [String] -> Char -> IO [Int]
+read4Ints previous control = do
+     ints <- readInts
+     if (length ints == 4 
+     	&& (move_is_legal (head previous) (ints!!0) (ints!!1) (ints!!2) (ints!!3))
+     	&& not (elem (apply_move (head previous) (ints!!0) (ints!!1) (ints!!2) (ints!!3)) previous)
+     	&& ((control == 'w' && (ints!!3) >= 0) || (control == 'b' && (ints!!3) <= 0))) 
+		then return ints else do
+         putStrLn ("Incorrect move, either wrong format or move is illegal")
+         read4Ints previous control
+
+-- player vs heuristic
+game_pvh previous control
+	| is_win previous control = do
+		print control
+		print " wins!"
+	| control == 'b' 		  = do
+		putStrLn "Minimax's turn, Current board:"
+		print_5x5 (head previous)
+		game_pvh ((minimax previous control 2 heuristic):previous) (opposite control)  
+	| otherwise 			  = do
+		putStrLn "Player's turn, Current board:"
+		print_5x5 (head previous)
+		move_input <- read4Ints previous control
+		game_pvh ((apply_move (head previous) 
+			(move_input!!0) (move_input!!1) (move_input!!2) (move_input!!3)):previous) (opposite control)
+	where
+		heuristic = h_pawn_count2
 
 
 
@@ -162,52 +218,6 @@ why_won previous control
 
 
 
---player vs player
-game_pvp previous control
-	| is_win previous control = do
-		print control
-		print " wins!"
-	| otherwise = do
-		putStrLn "Current:"
-		print control
-		print_5x5 (head previous)
-		putStr "Possible moves:\n"
-		print_list (all_moves previous control)
-		move_index <- readLn
-		game_pvp (((all_moves previous control) !! move_index):previous) (opposite control) 
-
-
-readInts :: IO [Int]
-readInts = fmap (map read.words) getLine
-
-read4Ints :: [String] -> Char -> IO [Int]
-read4Ints previous control = do
-     ints <- readInts
-     if (length ints == 4 
-     	&& (move_is_legal (head previous) (ints!!0) (ints!!1) (ints!!2) (ints!!3))
-     	&& not (elem (apply_move (head previous) (ints!!0) (ints!!1) (ints!!2) (ints!!3)) previous)
-     	&& ((control == 'w' && (ints!!3) > 0) || (control == 'b' && (ints!!3) < 0))) 
-		then return ints else do
-         putStrLn ("Incorrect move, either wrong format or move is illegal")
-         read4Ints previous control
-
--- player vs heuristic
-game_pvh previous control
-	| is_win previous control = do
-		print control
-		print " wins!"
-	| control == 'b' 		  = do
-		putStrLn "Minimax's turn, Current board:"
-		print_5x5 (head previous)
-		game_pvh ((minimax previous control 2 heuristic):previous) (opposite control)  
-	| otherwise 			  = do
-		putStrLn "Player's turn, Current board:"
-		print_5x5 (head previous)
-		move_input <- read4Ints previous control
-		game_pvh ((apply_move (head previous) 
-			(move_input!!0) (move_input!!1) (move_input!!2) (move_input!!3)):previous) (opposite control)
-	where
-		heuristic = h_static
 
 compare_states :: (String, Int) -> (String, Int) -> Ordering
 compare_states x y
@@ -230,7 +240,7 @@ minimax_helper previous control maximizing_control depth heuristic
 	| control == maximizing_control 				=
 		(head previous, snd max) 
 	| otherwise			 							= 
-		(head previous, snd max) 
+		(head previous, snd min) 
 	where 
 		max = maximumBy compare_states (map 
 			(\new_state -> minimax_helper (new_state:previous) (opposite control) maximizing_control (depth - 1) heuristic) 

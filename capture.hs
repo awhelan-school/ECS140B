@@ -6,27 +6,32 @@ import Data.List
 
 
 test_weights = 
-	mapM (\a -> test_weights2 a) [11..20]
-
+	mapM (\a -> test_weights2 a) [4..5]
 
 test_weights2 a =
-	mapM (\b -> test_weights3 a b) [11..20]
+	mapM (\b -> test_weights3 a b) [3..5]
 
+test_weights3 a b =
+	mapM (\c -> test_weights4 a b c) [1..5]
 
-test_weights3 a b 
+test_weights4 a b c = do
+	print [a, b, c]
+	mapM (\f -> test_weights5 a b c f) [h_static, h_simple, h_pawn_count, h_pawn_count2, h_pawn_count3, h_flag_y, h_enemies_ahead]
+
+test_weights5 a b c opponent
 	| (not won_as_white) && (not won_as_black) = do
-		print [a, b]
 		putStrLn "Lose"
 	| won_as_white && won_as_black = do
-		print [a, b]
 		putStrLn "Win"
 	| otherwise = do
-		print [a, b]
 		putStrLn "Tie"
 	where
-		won_as_white = game_hvh_silent ["-wWw--www-------bbb--bBb-"] 'w' (h_weighted a b) h_pawn_count2
-		won_as_black = not (game_hvh_silent ["-wWw--www-------bbb--bBb-"] 'w' h_pawn_count2 (h_weighted a b))
+		won_as_white = game_hvh_silent ["-wWw--www-------bbb--bBb-"] 'w' (h_weighted a b c) opponent
+		won_as_black = not (game_hvh_silent ["-wWw--www-------bbb--bBb-"] 'w' opponent (h_weighted a b c))
 
+
+test_total =
+	mapM (\f -> test_h h_combo f) [h_static, h_simple, h_pawn_count, h_pawn_count2, h_pawn_count3, h_flag_y, h_enemies_ahead]
 
 
 
@@ -62,6 +67,25 @@ h_simple previous control
 	| is_win previous enemy control	= -100000 
 	| otherwise 				= 0
 	where
+		enemy = opposite control
+
+
+h_my_count :: [String] -> Char -> Int
+h_my_count previous control 
+	| is_win previous control control 	= 100000
+	| is_win previous enemy control	= -100000 
+	| otherwise 				= (count_chars state control)
+	where
+		state = (head previous)
+		enemy = opposite control
+
+h_enemy_count :: [String] -> Char -> Int
+h_enemy_count previous control 
+	| is_win previous control control 	= 100000
+	| is_win previous enemy control	= -100000 
+	| otherwise 				= 0 - (count_chars state enemy)
+	where
+		state = (head previous)
 		enemy = opposite control
 
 h_pawn_count :: [String] -> Char -> Int
@@ -148,13 +172,23 @@ h_mobility previous control
 	where
 		enemy = opposite control
 
-h_weighted a b previous control
+h_weighted a b c previous control
 	| is_win previous control control 	= 100000
 	| is_win previous enemy control 	= -100000 
 	| otherwise = 
-		a * (h_pawn_count2 previous control) + 
+		a * (h_pawn_count previous control) + 
 		b * (h_flag_y previous control) + 
-		(quot (h_mobility previous control) 5)
+		c * (h_mobility previous control)
+	where
+		enemy = opposite control
+
+h_combo previous control
+	| is_win previous control control 	= 100000
+	| is_win previous enemy control 	= -100000 
+	| otherwise = 
+		1 * (h_pawn_count previous control) + 
+		3 * (h_flag_y previous control) + 
+		3 * (h_mobility previous control)
 	where
 		enemy = opposite control
 

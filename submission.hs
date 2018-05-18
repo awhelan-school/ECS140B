@@ -2,7 +2,7 @@ import Data.List
 
 
 
-capture :: [String] -> Char -> Int = 
+capture :: [String] -> Char -> Int -> String 
 capture previous control depth = 
 	minimax previous control depth h_combo
 
